@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -15,15 +16,11 @@ import (
 )
 
 func main() {
-	sigs := make(chan os.Signal, 1)
-	done := make(chan bool, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		done <- true
-	}()
+	identity := flag.String("identity", "",
+		"Ziti Idenity file (optional if ZITI_SDK_CONFIG environment var is set)")
+	service := flag.String("service", "", "Ziti MQTT service name (required)")
 
-	// fmt.Println(aurora.Magenta("Mochi MQTT Server initializing..."), aurora.Cyan("TCP"))
+	flag.Parse()
 	fmt.Println(aurora.Magenta("Mochi MQTT Server initializing..."), aurora.Cyan("Ziti"))
 
 	// An example of configuring various server options...
@@ -34,9 +31,7 @@ func main() {
 
 	server := mqtt.NewServer(options)
 
-	//tcp := listeners.NewTCP("t1", ":1883")
-	service := os.Args[1]
-	zl := NewZitiListener(service)
+	zl := NewZitiListener(*identity, *service)
 
 	err := server.AddListener(zl, &listeners.Config{
 		Auth: new(auth.Allow),
@@ -53,10 +48,18 @@ func main() {
 	}()
 	fmt.Println(aurora.BgMagenta("  Started!  "))
 
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		done <- true
+	}()
+
 	<-done
 	fmt.Println(aurora.BgRed("  Caught Signal  "))
 
-	server.Close()
+	_ = server.Close()
 	fmt.Println(aurora.BgGreen("  Finished  "))
 
 }
